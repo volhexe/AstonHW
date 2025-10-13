@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,13 +18,17 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 @Slf4j
 public class UserServiceImpl implements UserService {
+
     private final UserRepository repository;
 
-    private final KafkaTemplate<String, UserEvent> kafkaTemplate;
+
+    @Autowired(required = false)
+    private KafkaTemplate<String, String> kafkaTemplate;
+
     private static final String TOPIC = "user-events";
-    public UserServiceImpl(UserRepository repository, KafkaTemplate<String, UserEvent> kafkaTemplate) {
+
+    public UserServiceImpl(UserRepository repository) {
         this.repository = repository;
-        this.kafkaTemplate = kafkaTemplate;
     }
 
     private UserDto toDto(User u) {
@@ -40,8 +45,8 @@ public class UserServiceImpl implements UserService {
             User saved = repository.save(user);
             log.info("User created id={} email={}", saved.getId(), saved.getEmail());
 
-            // Отправляем событие
-            kafkaTemplate.send("user-events", new UserEvent("CREATE", saved.getEmail()));
+
+            sendKafkaEvent("CREATE", saved.getEmail());
 
             return toDto(saved);
         } catch (DataIntegrityViolationException dive) {
@@ -93,9 +98,24 @@ public class UserServiceImpl implements UserService {
         repository.deleteById(id);
         log.info("User deleted id={}", id);
 
-        // Отправляем событие удаления
-        kafkaTemplate.send("user-events", new UserEvent("DELETE", userOpt.get().getEmail()));
+        sendKafkaEvent("DELETE", userOpt.get().getEmail());
 
         return true;
+    }
+
+
+    private void sendKafkaEvent(String operation, String email) {
+        if (kafkaTemplate == null) {
+            log.info("Kafka is not configured — skipping event send ({} for {}).", operation, email);
+            return;
+        }
+
+        try {
+            String message = String.format("{\"operation\":\"%s\",\"email\":\"%s\"}", operation, email);
+            kafkaTemplate.send(TOPIC, message);
+            log.info("Kafka event sent: {}", message);
+        } catch (Exception e) {
+            log.warn("Kafka send failed ({} for {}): {}", operation, email, e.getMessage());
+        }
     }
 }
