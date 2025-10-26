@@ -1,12 +1,13 @@
 spring:
   application:
-    name: notification-service  #
+    name: notification-service
   profiles:
-    active: docker  # Если нужно
+    active: docker
   config:
     import: optional:configserver:http://config-server:8888
+    allow-override: true
   kafka:
-    bootstrap-servers: kafka:9092  # Internal
+    bootstrap-servers: kafka:9092
     consumer:
       group-id: notification-group
       auto-offset-reset: earliest
@@ -14,37 +15,32 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: com.example.model.*
+      topic: user-events
     listener:
       concurrency: 1
   mail:
-    host: localhost  # Dummy for MailHog (1025)
+    host: localhost
     port: 1025
     username: test
     password: test
     properties:
       mail:
         smtp:
-          auth: false  # No auth for dummy
+          auth: false
           starttls:
             enable: false
-
 server:
-  port: 8081  # ENV override
-
-# Eureka
+  port: 8081
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
       defaultZone: http://discovery-service:8761/eureka
-    eureka-server-connect-timeout-seconds: 10
-    eureka-server-read-timeout-seconds: 10
+    eureka-server-read-timeout-seconds: 20
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${random.value}
-
-# Actuator (health UP without Eureka fail)
 management:
   endpoints:
     web:
@@ -54,21 +50,13 @@ management:
     health:
       show-details: always
       show-components: always
-    mail:
-      enabled: false  # Ключ: Отключить mail health contributor
-  health:
-    defaults:
+    eureka:
       enabled: true
     mail:
-      enabled: false  # Дважды для sure
-    diskspace:
-      enabled: true
-    # Не добавляем eureka/kafka как DOWN, если они UP
-
-
+      enabled: false
 logging:
   level:
     root: INFO
-    com.netflixdiscovery: DEBUG
-    com.example: INFO
+    com.netflix.eureka: DEBUG
     org.springframework.kafka: INFO
+    com.example: INFO

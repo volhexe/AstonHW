@@ -1,5 +1,5 @@
 services:
-  # Инфраструктура
+
   postgres:
     image: postgres:15
     container_name: postgres
@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: userdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
-      POSTGRES_HOST_AUTH_METHOD: trust  # Для simple auth
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -19,6 +19,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.1
@@ -30,6 +31,12 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     networks:
       - microservices-net
+    healthcheck:
+      test: ["CMD", "echo", "ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   kafka:
     image: confluentinc/cp-kafka:7.4.1
@@ -41,9 +48,9 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092  # Internal host: kafka
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true  # Auto user-events
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     networks:
       - microservices-net
@@ -52,26 +59,38 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s  # Добавлено
+
+  # Dummy SMTP для теста (MailHog)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  #  (http://localhost:8025)
+    networks:
+      - microservices-net
 
   # Spring микросервисы
   discovery-service:
     build:
-      context: ./discovery-service  # Папка модуля
+      context: ./discovery-service
       dockerfile: Dockerfile
     container_name: discovery-service
     ports:
       - "8761:8761"
     environment:
-      SPRING_PROFILES_ACTIVE: docker  # Если profiles в yml
+      SPRING_PROFILES_ACTIVE: docker
     networks:
       - microservices-net
     depends_on:
-      - kafka  # Optional, но order
+      - kafka
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 60s
 
   config-server:
     build:
@@ -81,10 +100,11 @@ services:
     ports:
       - "8888:8888"
     environment:
-      SPRING_PROFILES_ACTIVE: native  # Native backend
+      SPRING_PROFILES_ACTIVE: native
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_CLOUD_CONFIG_FAIL_FAST: false
     volumes:
-      - ./config-server/src/main/resources/shared:/app/shared  # Mount YAML files (native search classpath:/shared)
+      - ./config-server/src/main/resources/shared:/app/shared
     networks:
       - microservices-net
     depends_on:
@@ -95,6 +115,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 60s
 
   user-service:
     build:
@@ -104,14 +125,16 @@ services:
     ports:
       - "8082:8082"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_CLOUD_CONFIG_URI: http://config-server:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/userdb  # Internal postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/userdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: root
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092  # Internal kafka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SERVER_PORT: 8082
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_FAIL_FAST: false
     networks:
       - microservices-net
     depends_on:
@@ -128,6 +151,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 60s
 
   notification-service:
     build:
@@ -137,13 +161,21 @@ services:
     ports:
       - "8081:8081"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_CLOUD_CONFIG_URI: http://config-server:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092  # Internal
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SERVER_PORT: 8081
-      SPRING_MAIL_HOST: localhost  # Dummy, or external
+      # Mail с MailHog
+      SPRING_MAIL_HOST: mailhog
       SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_USERNAME: test
+      SPRING_MAIL_PASSWORD: test
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: false
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: false
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_FAIL_FAST: false
+      SPRING_MANAGEMENT_ENDPOINT_HEALTH_MAIL_ENABLED: true
     networks:
       - microservices-net
     depends_on:
@@ -153,11 +185,14 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 60s
 
   api-gateway:
     build:
@@ -167,9 +202,13 @@ services:
     ports:
       - "8080:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_CLOUD_CONFIG_URI: http://config-server:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       SERVER_PORT: 8080
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_FAIL_FAST: false
+      SPRING_CLOUD_COMPATIBILITY_VERIFIER_ENABLED: false
     networks:
       - microservices-net
     depends_on:
@@ -186,6 +225,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 60s
 
 volumes:
   postgres_data:

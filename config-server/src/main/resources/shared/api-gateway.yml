@@ -1,0 +1,55 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuit
+                fallbackUri: forward:/fallback/user-service
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notificationServiceCircuit
+                fallbackUri: forward:/fallback/notification-service
+    config:
+      allow-override: true
+resilience4j:
+  circuitbreaker:
+    instances:
+      userServiceCircuit:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+      notificationServiceCircuit:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-service:8761/eureka
+    eureka-server-connect-timeout-seconds: 20
+    eureka-server-read-timeout-seconds: 20
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

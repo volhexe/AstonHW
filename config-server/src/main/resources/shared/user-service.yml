@@ -1,9 +1,8 @@
 server:
   port: 8082
-
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/userdb
+    url: jdbc:postgresql://postgres:5432/userdb
     username: postgres
     password: root
     driver-class-name: org.postgresql.Driver
@@ -12,11 +11,21 @@ spring:
       ddl-auto: update
     show-sql: true
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: kafka:9092
     producer:
       topic: user-events
-
+  cloud:
+    config:# Для environment overrides
+profiles:
+  active: docker
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka
+      defaultZone: http://discovery-service:8761/eureka
+    eureka-server-connect-timeout-seconds: 20
+    eureka-server-read-timeout-seconds: 20
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

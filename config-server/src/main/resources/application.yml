@@ -1,24 +1,26 @@
 server:
   port: 8888
-
 spring:
-  application:
-    name: config-server
-  profiles:
-    active: native
   cloud:
     config:
       server:
         native:
-          search-locations: classpath:/shared
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka
+      defaultZone: http://discovery-service:8761/eureka
     register-with-eureka: true
-
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
 logging:
   level:
-    org.springframework.cloud.config: DEBUG
-    org.springframework.cloud.config.server.environment.NativeEnvironmentRepository: DEBUG
+    org.springframework.cloud: INFO
