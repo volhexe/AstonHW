@@ -1,0 +1,32 @@
+spring:
+datasource:
+  url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+  driver-class-name: org.h2.Driver
+  username: sa
+  password: ""
+jpa:
+  hibernate:
+    ddl-auto: create-drop  # Auto tables for test
+  database-platform: org.hibernate.dialect.H2Dialect
+  show-sql: false
+h2:
+  console:
+    enabled: true  # Optional, H2 console in test
+
+cloud:
+  config:
+    enabled: false  # Disable config-server in test
+  discovery:
+    enabled: false  # No Eureka
+
+kafka:
+  bootstrap-servers: localhost:9999  # Dummy, no real Kafka
+
+autoconfigure:
+  exclude:
+    - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+    - org.springframework.cloud.netflix.eureka.EurekaClientAutoConfiguration
+
+logging:
+  level:
+    com.example: DEBUG

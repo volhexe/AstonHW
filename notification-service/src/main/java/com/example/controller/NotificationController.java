@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
-
     private final NotificationService notificationService;
 
     public NotificationController(NotificationService notificationService) {
@@ -20,9 +19,8 @@ public class NotificationController {
     @PostMapping("/send")
     public ResponseEntity<String> sendNotification(@RequestBody ManualNotificationRequest req) {
         if (req.email() == null || req.email().isBlank() || req.operation() == null || req.operation().isBlank()) {
-            return ResponseEntity.badRequest().body("Email обязательн");
+            return ResponseEntity.badRequest().body("Email обязателен");
         }
-
         notificationService.handleUserEvent(
                 new UserEvent(req.operation().toUpperCase(), req.email())
         );

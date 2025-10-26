@@ -1,4 +1,5 @@
 package com.example.controller;
+
 import com.example.dto.UserCreateRequest;
 import com.example.dto.UserDto;
 import com.example.service.UserService;
@@ -11,16 +12,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
+
 @RestController
 @RequestMapping("/api/users")
 @Slf4j
 @Tag(name = "Users", description = "API for managing users: creation, reading, updating, and deletion.")
 public class UserController {
     private final UserService service;
+
     public UserController(UserService service) {
         this.service = service;
     }
+
     @GetMapping
     @Operation(
             summary = "Get list of all users",
@@ -34,6 +39,7 @@ public class UserController {
         log.info("GET /api/users list");
         return service.getAll();
     }
+
     @GetMapping("/{id}")
     @Operation(
             summary = "Get user by ID",
@@ -52,6 +58,7 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
     @PostMapping
     @Operation(
             summary = "Create a new user",
@@ -67,6 +74,7 @@ public class UserController {
         UserDto created = service.create(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
+
     @PutMapping("/{id}")
     @Operation(
             summary = "Update user by ID",
@@ -82,13 +90,15 @@ public class UserController {
             @PathVariable("id") Long id,
             @RequestBody UserCreateRequest req) {
         log.info("PUT /api/users/{}", id);
-        try {
-            return ResponseEntity.ok(service.update(id, req));
-        } catch (RuntimeException e) {
-            log.warn("Update failed for id={}", id, e);
+        UserDto updated = service.update(id, req);
+        if (updated != null) {
+            return ResponseEntity.ok(updated);
+        } else {
+            log.warn("User not found for update id={}", id);
             return ResponseEntity.notFound().build();
         }
     }
+
     @DeleteMapping("/{id}")
     @Operation(
             summary = "Delete user by ID",

@@ -10,14 +10,16 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(classes = NotificationServiceApplication.class)
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 public class NotificationServiceTest {
 
     @Autowired
@@ -35,13 +37,15 @@ public class NotificationServiceTest {
                         .content(json))
                 .andExpect(status().isOk());
 
-        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        Mockito.verify(mailSender).send(captor.capture());
-        SimpleMailMessage sent = captor.getValue();
 
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender, Mockito.times(1)).send(captor.capture());
+        SimpleMailMessage sent = captor.getValue();
         assertEquals("test@example.com", sent.getTo()[0]);
+        assertEquals("Добро пожаловать!", sent.getSubject());
         assertTrue(sent.getText().contains("успешно создан"));
     }
+
     @Test
     void testSendEmailApiOnDelete() throws Exception {
         String json = "{\"email\":\"deleteuser@example.com\", \"operation\":\"DELETE\"}";
@@ -51,11 +55,12 @@ public class NotificationServiceTest {
                         .content(json))
                 .andExpect(status().isOk());
 
-        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        Mockito.verify(mailSender).send(captor.capture());
 
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender, Mockito.times(1)).send(captor.capture());
         SimpleMailMessage sent = captor.getValue();
         assertEquals("deleteuser@example.com", sent.getTo()[0]);
+        assertEquals("Аккаунт удалён", sent.getSubject());
         assertTrue(sent.getText().contains("был удалён"));
     }
 }

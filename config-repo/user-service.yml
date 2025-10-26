@@ -9,7 +9,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: truedocker-compose logs config-server
   kafka:
     bootstrap-servers: localhost:9092
     producer:

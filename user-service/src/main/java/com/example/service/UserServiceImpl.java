@@ -18,13 +18,10 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 @Slf4j
 public class UserServiceImpl implements UserService {
-
     private final UserRepository repository;
-
 
     @Autowired(required = false)
     private KafkaTemplate<String, String> kafkaTemplate;
-
     private static final String TOPIC = "user-events";
 
     public UserServiceImpl(UserRepository repository) {
@@ -40,14 +37,11 @@ public class UserServiceImpl implements UserService {
     public UserDto create(UserCreateRequest request) {
         log.info("Creating user email={} name={}", request.email(), request.name());
         User user = new User(request.name(), request.email(), request.age());
-
         try {
             User saved = repository.save(user);
             log.info("User created id={} email={}", saved.getId(), saved.getEmail());
 
-
             sendKafkaEvent("CREATE", saved.getEmail());
-
             return toDto(saved);
         } catch (DataIntegrityViolationException dive) {
             log.warn("Constraint violation creating user email={}", request.email(), dive);
@@ -74,14 +68,32 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserDto update(Long id, UserCreateRequest request) {
         log.info("Updating user id={}", id);
-        User user = new User();
-        user.setId(id);
-        if (request.name() != null && !request.name().isBlank()) user.setName(request.name().trim());
-        if (request.email() != null && !request.email().isBlank()) user.setEmail(request.email().trim());
-        if (request.age() != null) user.setAge(request.age());
-        User saved = repository.save(user);
-        log.info("User updated id={}", saved.getId());
-        return toDto(saved);
+        Optional<User> userOpt = repository.findById(id);
+        if (userOpt.isEmpty()) {
+            log.warn("User not found for update id={}", id);
+            return null;  //404
+        }
+
+        User user = userOpt.get();
+        if (request.name() != null && !request.name().isBlank()) {
+            user.setName(request.name().trim());
+        }
+        if (request.email() != null && !request.email().isBlank()) {
+            user.setEmail(request.email().trim());
+        }
+        if (request.age() != null) {
+            user.setAge(request.age());
+        }
+        try {
+            User saved = repository.save(user);
+            log.info("User updated id={}", saved.getId());
+
+            sendKafkaEvent("UPDATE", saved.getEmail());
+            return toDto(saved);
+        } catch (DataIntegrityViolationException dive) {
+            log.warn("Constraint violation updating user id={}", id, dive);
+            throw new RuntimeException("Constraint violation: " + dive.getMessage(), dive);
+        }
     }
 
     @Override
@@ -89,27 +101,21 @@ public class UserServiceImpl implements UserService {
     public boolean delete(Long id) {
         log.info("Deleting user id={}", id);
         Optional<User> userOpt = repository.findById(id);
-
         if (userOpt.isEmpty()) {
             log.warn("User to delete not found id={}", id);
             return false;
         }
-
         repository.deleteById(id);
         log.info("User deleted id={}", id);
-
         sendKafkaEvent("DELETE", userOpt.get().getEmail());
-
         return true;
     }
-
 
     private void sendKafkaEvent(String operation, String email) {
         if (kafkaTemplate == null) {
             log.info("Kafka is not configured — skipping event send ({} for {}).", operation, email);
             return;
         }
-
         try {
             String message = String.format("{\"operation\":\"%s\",\"email\":\"%s\"}", operation, email);
             kafkaTemplate.send(TOPIC, message);

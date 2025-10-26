@@ -21,8 +21,10 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 @Slf4j
 class UserControllerTest {
     @Autowired
@@ -51,7 +53,7 @@ class UserControllerTest {
         assertEquals("Test", created.name());
         assertEquals("test@example.com", created.email());
         assertEquals(25, created.age());
-       }
+    }
 
     @Test
     void testGetUserById() throws Exception {

@@ -2,22 +2,60 @@ server:
   port: 8081
 
 spring:
+  application:
+    name: notification-service
+  profiles:
+    active: docker
+  config:
+    import: optional:configserver:http://config-server:8888
+  # Kafka
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: kafka:9092  # ?
     consumer:
-      group-id: notification-service
+      group-id: notification-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: '*'
-
+        spring.json.trusted.packages: com.example.model.*
+    listener:
+      concurrency: 1
+  # Mail (Gmail test, but compose ENV localhost:1025 overrides for dummy)
   mail:
-    host: smtp.example.com
+    host: smtp.gmail.com
     port: 587
-    username: your-email@example.com
-    password: your-password
+    username: your-email@gmail.com  # Replace real
+    password: your-app-password  # App password from Google
     properties:
-      mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  # JPA/H2 test off
+  jpa:
+    hibernate:
+      ddl-auto: none
 
+# Eureka internal
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://discovery-service:8761/eureka  # ?
+# Actuator expose
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.example: INFO
+    org.springframework.kafka: INFO
